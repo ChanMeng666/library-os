@@ -746,28 +746,97 @@ npx supabase db execute --sql "SELECT ..."
 Supabase 免费层级数据库会在 7 天不活跃后自动暂停。本项目使用 GitHub Actions 定时任务防止此问题。
 
 ### How It Works
-1. GitHub Actions 每 3 天自动运行一次（远低于 7 天限制）
-2. 工作流调用 Supabase RPC `ping()` 函数
-3. 函数向 `keep_alive` 表插入心跳记录
-4. 数据库产生写操作，重置活跃计时器
+1. GitHub Actions 每天自动运行两次（00:00 UTC 和 12:00 UTC）
+2. 工作流尝试调用 Supabase RPC `ping()` 函数
+3. 如果 RPC 失败，自动回退到简单查询
+4. 函数向 `keep_alive` 表插入心跳记录
+5. 数据库产生写操作，重置活跃计时器
+6. 失败时自动创建 GitHub Issue 通知
 
 ### Related Files
 | File | Purpose |
 |------|---------|
-| `.github/workflows/supabase-keep-alive.yml` | GitHub Actions 定时任务 |
-| `src/app/api/health/ping/route.ts` | 健康检查 API 端点 |
+| `.github/workflows/supabase-keep-alive.yml` | GitHub Actions 定时任务（每天两次） |
+| `src/app/api/health/ping/route.ts` | 健康检查 API 端点（备用） |
 | `supabase/migrations/20251231000001_add_keep_alive_system.sql` | 心跳表和 ping 函数 |
 
-### Manual Trigger
-在 GitHub 仓库的 Actions 页面可以手动触发工作流进行测试。
+### Setup Checklist (IMPORTANT)
+
+完成以下步骤确保 Keep-Alive 系统正常工作：
+
+#### 1. 配置 GitHub Secrets（必须）
+访问 GitHub 仓库 → Settings → Secrets and variables → Actions，添加以下 secrets：
+
+| Secret Name | Where to Find | Description |
+|-------------|---------------|-------------|
+| `SUPABASE_URL` | Supabase Dashboard → Project Settings → API → Project URL | 项目 URL，如 `https://xxxxx.supabase.co` |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase Dashboard → Project Settings → API → service_role key | **注意**：使用 service_role，不是 anon key |
+
+#### 2. 部署数据库迁移（必须）
+确保 `ping()` 函数已部署到 Supabase：
+```bash
+npx supabase db push
+```
+
+#### 3. 手动测试工作流
+1. 访问 GitHub 仓库 → Actions → Supabase Keep-Alive
+2. 点击 "Run workflow" 按钮
+3. 检查运行日志确认成功
+
+#### 4. 验证心跳记录
+在 Supabase SQL Editor 中运行：
+```sql
+SELECT * FROM keep_alive ORDER BY pinged_at DESC LIMIT 10;
+```
+
+### Troubleshooting
+
+#### 问题：工作流显示 "SUPABASE_URL secret is NOT configured"
+**原因**：GitHub Secrets 未配置
+**解决**：按照上述 Setup Checklist 第 1 步配置 secrets
+
+#### 问题：工作流显示 "ping() RPC failed"
+**原因**：数据库迁移未部署
+**解决**：运行 `npx supabase db push` 部署迁移
+
+#### 问题：数据库已被暂停
+**解决步骤**：
+1. 访问 [Supabase Dashboard](https://supabase.com/dashboard)
+2. 选择被暂停的项目
+3. 点击 "Resume project" 恢复数据库
+4. 等待 1-2 分钟完成恢复
+5. 手动触发 Keep-Alive 工作流测试
+6. 验证 GitHub Secrets 配置正确
+
+#### 问题：工作流从未运行
+**可能原因**：
+- 代码未合并到默认分支（main/master）
+- GitHub Actions 被禁用
+**解决**：确认代码在默认分支，检查 Actions 设置
 
 ### Monitor Heartbeats
 ```sql
 -- 查看最近的心跳记录
 SELECT * FROM keep_alive ORDER BY pinged_at DESC LIMIT 10;
+
+-- 检查最后一次成功 ping 的时间
+SELECT 
+  pinged_at,
+  agent_info,
+  response_time_ms,
+  NOW() - pinged_at as time_since_last_ping
+FROM keep_alive 
+ORDER BY pinged_at DESC 
+LIMIT 1;
 ```
 
-### GitHub Secrets Required
-在 GitHub 仓库 Settings > Secrets and variables > Actions 中添加：
-- `SUPABASE_URL` - Supabase 项目 URL
-- `SUPABASE_SERVICE_ROLE_KEY` - Service Role Key（从 Supabase Dashboard 获取）
+### Manual Trigger
+在 GitHub 仓库的 Actions 页面可以手动触发工作流进行测试。
+
+### Backup Options (Optional)
+
+如果担心 GitHub Actions 不够可靠，可以配置外部 cron 服务作为备份：
+
+1. **cron-job.org**（免费）：配置每天调用应用的 `/api/health/ping` 端点
+2. **UptimeRobot**（免费）：每 5 分钟监控一次应用健康状态
+3. **Better Uptime**：提供更详细的监控和告警

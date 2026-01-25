@@ -36,7 +36,25 @@
       "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" add .gitignore .env.example)",
       "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" commit -m \"$\\(cat <<''EOF''\ndocs: add environment example configuration file\n\n- Add .env.example with placeholder values for all required environment\n  variables including Supabase, Stripe, Resend, and PostgreSQL config\n- Update .gitignore to allow tracking .env.example while keeping\n  actual env files ignored\n- Helps new developers quickly set up the project\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" push)",
-      "Bash(del /f \"D:\\\\github_repository\\\\library-management-system\\\\nul\")"
+      "Bash(del /f \"D:\\\\github_repository\\\\library-management-system\\\\nul\")",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" status)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" diff)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" log --oneline -5)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" add CLAUDE.md)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" commit -m \"$\\(cat <<''EOF''\ndocs: add database management guide to CLAUDE.md\n\n- Document Supabase CLI as the primary database management tool\n- List common commands for migrations, type generation, and SQL execution\n- Clarify that ORM tools \\(Prisma, Drizzle\\) should not be introduced\n- Explain the project''s data access patterns using RPC and RLS\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(ren \"D:\\\\github_repository\\\\library-management-system\\\\public\\\\library-management-system-logo.svg\" \"libraryos-logo.svg\")",
+      "Bash(ren \"D:\\\\github_repository\\\\library-management-system\\\\public\\\\library-management-system-brand.svg\" \"libraryos-brand.svg\")",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" diff --stat)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" add CLAUDE.md README.md package.json src/app/books/page.tsx src/app/cookies/page.tsx src/app/layout.tsx src/app/login/page.tsx src/app/page.tsx src/app/privacy/page.tsx src/app/register/page.tsx src/app/terms/page.tsx src/components/layout/Footer.tsx src/components/layout/Header.tsx src/lib/resend.ts src/lib/supabase-client.ts public/libraryos-brand.svg public/libraryos-logo.svg public/library-management-system-brand.svg public/library-management-system-logo.svg)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" commit -m \"$\\(cat <<''EOF''\nrefactor\\(brand\\): rebrand project to LibraryOS\n\n- Rename project from \"Library Management System\" to \"LibraryOS\"\n- Update package.json name field\n- Update metadata in root layout \\(title, description, icons\\)\n- Update Header and Footer components with new branding\n- Update landing page hero section and marketing copy\n- Update authentication pages \\(login, register\\)\n- Update books page welcome message\n- Update legal pages \\(privacy, terms, cookies\\)\n- Update email templates with LibraryOS branding\n- Change Supabase auth storage key to ''libraryos-auth''\n- Rename logo files to libraryos-logo.svg and libraryos-brand.svg\n- Update documentation \\(README.md, CLAUDE.md\\)\n\nBREAKING CHANGE: Auth storage key changed, existing users will need to re-login\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(cat:*)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" log --oneline -3)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" add .github/workflows/supabase-keep-alive.yml src/app/api/health/ping/route.ts supabase/migrations/20251231000001_add_keep_alive_system.sql CLAUDE.md)",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" commit -m \"$\\(cat <<''EOF''\nfeat: add Supabase database keep-alive system\n\n- Add keep_alive heartbeat table and ping\\(\\) RPC function\n- Create /api/health/ping endpoint for health checks\n- Add GitHub Actions workflow to ping database every 3 days\n- Update CLAUDE.md with keep-alive documentation\n\nThis prevents the Supabase free tier database from being\nauto-paused due to 7-day inactivity limit.\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"D:\\\\github_repository\\\\library-management-system\" remote -v)",
+      "Bash(gh auth:*)"
     ]
   }
 }

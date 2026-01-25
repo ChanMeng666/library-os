@@ -2,13 +2,20 @@ name: Supabase Keep-Alive
 
 # This workflow prevents the Supabase free tier database from being
 # auto-paused due to inactivity (7-day limit).
-# It runs every 3 days to ping the database and keep it active.
+# 
+# Improvements over v1:
+# - Runs twice daily instead of every 3 days (more reliable)
+# - Includes retry mechanism (3 attempts)
+# - Fallback to simple query if RPC not available
+# - Creates GitHub Issue on failure for visibility
+# - Better error messages and debugging
 
 on:
   schedule:
-    # Run every 3 days at 00:00 UTC
-    # Cron syntax: minute hour day-of-month month day-of-week
-    - cron: '0 0 */3 * *'
+    # Run twice daily for better reliability
+    # This gives us 14 attempts per week (vs 2-3 before)
+    - cron: '0 0 * * *'   # Every day at 00:00 UTC
+    - cron: '0 12 * * *'  # Every day at 12:00 UTC
 
   # Allow manual trigger for testing
   workflow_dispatch:
@@ -16,65 +23,276 @@ on:
       debug:
         description: 'Enable debug output'
         required: false
-        default: 'false'
+        default: false
         type: boolean
+
+env:
+  MAX_RETRIES: 3
+  RETRY_DELAY: 30
 
 jobs:
   ping-database:
     name: Ping Supabase Database
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
-      - name: Ping Database via RPC
+      - name: Validate Secrets Configuration
+        run: |
+          echo "============================================"
+          echo "Supabase Keep-Alive - Validating Configuration"
+          echo "============================================"
+          echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo ""
+          
+          errors=0
+          
+          if [ -z "${{ secrets.SUPABASE_URL }}" ]; then
+            echo "::error::SUPABASE_URL secret is NOT configured!"
+            echo ""
+            echo "To fix this:"
+            echo "1. Go to your GitHub repository"
+            echo "2. Click Settings > Secrets and variables > Actions"
+            echo "3. Click 'New repository secret'"
+            echo "4. Name: SUPABASE_URL"
+            echo "5. Value: Your Supabase project URL (e.g., https://xxxxx.supabase.co)"
+            echo ""
+            errors=$((errors + 1))
+          else
+            echo "✓ SUPABASE_URL is configured"
+          fi
+          
+          if [ -z "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" ]; then
+            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is NOT configured!"
+            echo ""
+            echo "To fix this:"
+            echo "1. Go to your Supabase Dashboard > Project Settings > API"
+            echo "2. Copy the 'service_role' key (NOT the anon key)"
+            echo "3. Add it as a GitHub secret named SUPABASE_SERVICE_ROLE_KEY"
+            echo ""
+            errors=$((errors + 1))
+          else
+            echo "✓ SUPABASE_SERVICE_ROLE_KEY is configured"
+          fi
+          
+          if [ $errors -gt 0 ]; then
+            echo ""
+            echo "::error::$errors required secret(s) are missing. Please configure them and re-run."
+            exit 1
+          fi
+          
+          echo ""
+          echo "✓ All required secrets are configured"
+
+      - name: Ping Database with Retry
+        id: ping
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
-          echo "Starting Supabase keep-alive ping..."
-          echo "Timestamp: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-
-          # Validate environment variables
-          if [ -z "$SUPABASE_URL" ]; then
-            echo "::error::SUPABASE_URL secret is not set"
-            exit 1
-          fi
-
-          if [ -z "$SUPABASE_SERVICE_ROLE_KEY" ]; then
-            echo "::error::SUPABASE_SERVICE_ROLE_KEY secret is not set"
-            exit 1
-          fi
-
-          # Call the ping RPC function directly
-          response=$(curl -f -s -w "\n%{http_code}" -X POST \
-            "${SUPABASE_URL}/rest/v1/rpc/ping" \
-            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '{"p_agent_info": "GitHub Actions"}')
-
-          # Extract HTTP status code (last line)
-          http_code=$(echo "$response" | tail -n1)
-          # Extract response body (all lines except last)
-          body=$(echo "$response" | sed '$d')
-
-          echo "HTTP Status: $http_code"
-          echo "Response: $body"
-
-          # Check if request was successful
-          if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+          echo "============================================"
+          echo "Starting Supabase Keep-Alive Ping"
+          echo "============================================"
+          echo ""
+          
+          ping_success=false
+          
+          for attempt in $(seq 1 $MAX_RETRIES); do
+            echo "----------------------------------------"
+            echo "Attempt $attempt of $MAX_RETRIES"
+            echo "Time: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "----------------------------------------"
+            
+            # Method 1: Try ping RPC function (preferred)
+            echo "Trying ping() RPC function..."
+            
+            response=$(curl -s -w "\n%{http_code}" -X POST \
+              "${SUPABASE_URL}/rest/v1/rpc/ping" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Content-Type: application/json" \
+              -H "Prefer: return=representation" \
+              -d '{"p_agent_info": "GitHub Actions Keep-Alive"}' \
+              --connect-timeout 30 \
+              --max-time 60 \
+              2>&1)
+            
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+            
+            echo "HTTP Status: $http_code"
+            echo "Response: $body"
+            
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              echo ""
+              echo "✓ ping() RPC successful!"
+              ping_success=true
+              echo "ping_method=rpc" >> $GITHUB_OUTPUT
+              break
+            fi
+            
+            echo ""
+            echo "ping() RPC failed (may not be deployed), trying fallback..."
+            
+            # Method 2: Fallback - Simple query to any table
+            # This works even if the ping() function is not deployed
+            echo "Trying simple query fallback..."
+            
+            response=$(curl -s -w "\n%{http_code}" -X GET \
+              "${SUPABASE_URL}/rest/v1/keep_alive?select=id&limit=1" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+              --connect-timeout 30 \
+              --max-time 60 \
+              2>&1)
+            
+            http_code=$(echo "$response" | tail -n1)
+            body=$(echo "$response" | sed '$d')
+            
+            echo "HTTP Status: $http_code"
+            echo "Response: $body"
+            
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              echo ""
+              echo "✓ Simple query successful!"
+              ping_success=true
+              echo "ping_method=simple_query" >> $GITHUB_OUTPUT
+              break
+            fi
+            
+            echo ""
+            echo "Simple query failed, trying health endpoint..."
+            
+            # Method 3: Final fallback - Check Supabase health endpoint
+            echo "Trying Supabase health endpoint..."
+            
+            response=$(curl -s -w "\n%{http_code}" -X GET \
+              "${SUPABASE_URL}/rest/v1/" \
+              -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+              --connect-timeout 30 \
+              --max-time 60 \
+              2>&1)
+            
+            http_code=$(echo "$response" | tail -n1)
+            
+            echo "HTTP Status: $http_code"
+            
+            if [ "$http_code" -ge 200 ] && [ "$http_code" -lt 300 ]; then
+              echo ""
+              echo "✓ Health endpoint successful!"
+              ping_success=true
+              echo "ping_method=health" >> $GITHUB_OUTPUT
+              break
+            fi
+            
+            echo ""
+            if [ $attempt -lt $MAX_RETRIES ]; then
+              echo "All methods failed. Waiting ${RETRY_DELAY}s before retry..."
+              sleep $RETRY_DELAY
+            fi
+          done
+          
+          echo ""
+          echo "============================================"
+          
+          if [ "$ping_success" = true ]; then
             echo "::notice::Database ping successful!"
             echo "Keep-alive completed at $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+            echo "ping_success=true" >> $GITHUB_OUTPUT
           else
-            echo "::error::Database ping failed with HTTP $http_code"
+            echo "::error::All ping attempts failed after $MAX_RETRIES retries"
+            echo "ping_success=false" >> $GITHUB_OUTPUT
             exit 1
           fi
 
-      - name: Report Status
-        if: always()
+      - name: Report Success
+        if: success()
         run: |
-          if [ "${{ job.status }}" == "success" ]; then
-            echo "Supabase database is active and responding."
-          else
-            echo "::warning::Keep-alive ping may have failed. Please check the database status."
-          fi
+          echo "============================================"
+          echo "✓ Supabase Database Keep-Alive Successful"
+          echo "============================================"
+          echo ""
+          echo "The database has been pinged and is active."
+          echo "Next scheduled run: Check the workflow schedule"
+          echo ""
+          echo "Ping method used: ${{ steps.ping.outputs.ping_method }}"
+
+      - name: Create Issue on Failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Check if there's already an open issue for this
+            const issues = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              labels: 'supabase-keep-alive-failure',
+              state: 'open'
+            });
+            
+            // Don't create duplicate issues
+            if (issues.data.length > 0) {
+              console.log('An open issue already exists for keep-alive failure');
+              
+              // Add a comment to the existing issue
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: issues.data[0].number,
+                body: `Another keep-alive failure occurred at ${new Date().toISOString()}.
+                
+            [View workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})`
+              });
+              
+              return;
+            }
+            
+            // Create a new issue
+            const title = '⚠️ Supabase Keep-Alive Failed - Database May Be Paused';
+            const body = `## Supabase Keep-Alive Failure Alert
+            
+            The automated keep-alive ping to the Supabase database failed at **${new Date().toISOString()}**.
+            
+            ### Immediate Actions Required
+            
+            1. **Check if the database is paused**
+               - Go to [Supabase Dashboard](https://supabase.com/dashboard)
+               - If paused, click "Resume project"
+            
+            2. **Verify GitHub Secrets are configured**
+               - Go to this repository's Settings > Secrets and variables > Actions
+               - Ensure these secrets exist:
+                 - \`SUPABASE_URL\` - Your Supabase project URL
+                 - \`SUPABASE_SERVICE_ROLE_KEY\` - Your service role key (NOT anon key)
+            
+            3. **Verify the ping() function is deployed**
+               - Run \`npx supabase db push\` to push migrations
+               - Or manually run the keep_alive migration
+            
+            4. **Re-run the workflow**
+               - Go to Actions > Supabase Keep-Alive
+               - Click "Run workflow" to test
+            
+            ### Workflow Run Details
+            
+            - **Run ID**: ${context.runId}
+            - **Trigger**: ${context.eventName}
+            - [View full workflow run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})
+            
+            ### Why This Matters
+            
+            Supabase free tier databases are automatically paused after 7 days of inactivity. 
+            If the keep-alive fails, your database may become unavailable.
+            
+            ---
+            *This issue was automatically created by the Supabase Keep-Alive workflow.*`;
+            
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: title,
+              body: body,
+              labels: ['bug', 'urgent', 'supabase-keep-alive-failure']
+            });
+            
+            console.log('Created new issue for keep-alive failure');
