@@ -1,0 +1,39 @@
+name: Deploy to Cloudflare Workers
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy
+
+      - name: Output deployment URL
+        run: |
+          echo "## Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Your app is now live at: https://libraryos.chanmeng-dev.workers.dev" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Post-deployment checklist:" >> $GITHUB_STEP_SUMMARY
+          echo "- [ ] Update Stripe webhook URL" >> $GITHUB_STEP_SUMMARY
+          echo "- [ ] Update Supabase redirect URLs" >> $GITHUB_STEP_SUMMARY
+          echo "- [ ] Update NEXT_PUBLIC_APP_URL secret in Cloudflare" >> $GITHUB_STEP_SUMMARY

@@ -8,7 +8,10 @@
     "start": "next start",
     "lint": "next lint",
     "setup:stripe": "tsx scripts/setup-stripe.ts",
-    "stripe:listen": "stripe listen --forward-to localhost:3000/api/stripe/webhook"
+    "stripe:listen": "stripe listen --forward-to localhost:3000/api/stripe/webhook",
+    "build:worker": "opennextjs-cloudflare build",
+    "preview:worker": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -39,6 +42,7 @@
     "zod": "^4.2.1"
   },
   "devDependencies": {
+    "@opennextjs/cloudflare": "^1.16.2",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
@@ -53,6 +57,7 @@
     "supabase": "^2.70.5",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "wrangler": "^4.61.1"
   }
 }

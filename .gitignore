@@ -42,6 +42,11 @@ next-env.d.ts
 /.vscode
 .env*.local
 
+# Cloudflare
+.open-next/
+.wrangler/
+.dev.vars
+
 # Claude Code local settings
 .claude/settings.local.json
 

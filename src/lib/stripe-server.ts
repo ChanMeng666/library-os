@@ -224,15 +224,20 @@ export async function getSubscription(
     }
 }
 
-// Construct webhook event
-export function constructWebhookEvent(
+// WebCrypto provider for Cloudflare Workers compatibility
+const webCryptoProvider = Stripe.createSubtleCryptoProvider()
+
+// Construct webhook event (async for Cloudflare Workers WebCrypto compatibility)
+export async function constructWebhookEvent(
     payload: string | Buffer,
     signature: string,
     webhookSecret: string
-): Stripe.Event {
+): Promise<Stripe.Event> {
     if (!stripe) {
         throw new Error('Stripe is not configured')
     }
 
-    return stripe.webhooks.constructEvent(payload, signature, webhookSecret)
+    return await stripe.webhooks.constructEventAsync(
+        payload, signature, webhookSecret, undefined, webCryptoProvider
+    )
 }
