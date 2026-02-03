@@ -805,7 +805,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 [back-to-top]: https://img.shields.io/badge/-BACK_TO_TOP-151515?style=flat-square
 
 <!-- Project Links -->
-[demo-link]: https://library-management-system-chanmeng666.vercel.app
+[demo-link]: https://libraryos.live/
 [docs-link]: https://github.com/ChanMeng666/library-management-system#readme
 [issues-link]: https://github.com/ChanMeng666/library-management-system/issues
 

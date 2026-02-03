@@ -10,12 +10,12 @@ Your Supabase email confirmation links are currently redirecting to `localhost`.
 
 2. Set the **Site URL** to your production URL:
    ```
-   https://library-management-system-eta-six.vercel.app
+   https://libraryos.live
    ```
 
 3. Add your production URL to **Redirect URLs**:
    ```
-   https://library-management-system-eta-six.vercel.app/**
+   https://libraryos.live/**
    ```
 
 ### Step 2: Update Email Templates (Optional)
@@ -36,7 +36,7 @@ If you don't need email confirmation for now:
 ## Current Settings
 
 - **Project Ref**: wuwfqieqbpxesovckyky
-- **Production URL**: https://library-management-system-eta-six.vercel.app
+- **Production URL**: https://libraryos.live
 - **API URL**: https://wuwfqieqbpxesovckyky.supabase.co
 
 ## Changes Made
