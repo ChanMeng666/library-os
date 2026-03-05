@@ -58,6 +58,13 @@ function BillingContent() {
     const [isProcessing, setIsProcessing] = useState(false)
     const [selectedPlan, setSelectedPlan] = useState<string | null>(null)
     const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'yearly'>('monthly')
+    const [debugLogs, setDebugLogs] = useState<string[]>([])
+
+    const addLog = (msg: string) => {
+        const entry = `[${new Date().toISOString()}] ${msg}`
+        setDebugLogs(prev => [...prev, entry])
+        console.log(entry)
+    }
 
     // Check for success/cancel from Stripe checkout
     useEffect(() => {
@@ -166,47 +173,58 @@ function BillingContent() {
     }, [currentOrganization, isAdmin, isLoadingOrgs])
 
     const handleSubscribe = async (planId: string) => {
-        if (!user || !currentOrganization) return
+        addLog(`handleSubscribe called: planId=${planId}, billingPeriod=${billingPeriod}`)
+        addLog(`user=${user?.id}, org=${currentOrganization?.organization_id}`)
 
-        // Free plan doesn't need checkout
+        if (!user || !currentOrganization) {
+            addLog('ABORT: user or currentOrganization is null')
+            return
+        }
+
         if (planId === 'free') {
-            toast({
-                title: "Free Plan",
-                description: "You're already on the free plan.",
-            })
+            addLog('ABORT: free plan selected')
+            toast({ title: "Free Plan", description: "You're already on the free plan." })
             return
         }
 
         setIsProcessing(true)
         setSelectedPlan(planId)
 
+        const reqBody = {
+            organizationId: currentOrganization.organization_id,
+            planId,
+            billingPeriod,
+            userId: user.id,
+        }
+        addLog(`POST /api/stripe/checkout body=${JSON.stringify(reqBody)}`)
+
         try {
             const response = await fetch('/api/stripe/checkout', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    organizationId: currentOrganization.organization_id,
-                    planId,
-                    billingPeriod,
-                    userId: user.id,
-                }),
+                body: JSON.stringify(reqBody),
             })
 
+            addLog(`Response status=${response.status} ok=${response.ok}`)
             const data = await response.json()
+            addLog(`Response data=${JSON.stringify(data)}`)
 
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to create checkout session')
             }
 
-            // Redirect to Stripe Checkout
             if (data.url) {
+                addLog(`Redirecting to: ${data.url}`)
                 window.location.href = data.url
+            } else {
+                addLog('ERROR: No url in response data')
             }
         } catch (err) {
-            console.error('Checkout error:', err)
+            const errMsg = err instanceof Error ? err.message : String(err)
+            addLog(`CATCH error: ${errMsg}`)
             toast({
                 title: "Error",
-                description: err instanceof Error ? err.message : "Failed to start checkout",
+                description: errMsg,
                 variant: "destructive",
             })
         } finally {
@@ -477,6 +495,41 @@ function BillingContent() {
                     )}
                 </CardContent>
             </Card>
+
+            {/* DEBUG PANEL - Remove after debugging */}
+            {debugLogs.length > 0 && (
+                <Card className="mt-8 border-red-500">
+                    <CardHeader className="pb-2">
+                        <CardTitle className="text-red-500 flex items-center justify-between">
+                            <span>Debug Logs</span>
+                            <div className="flex gap-2">
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(debugLogs.join('\n'))
+                                        toast({ title: 'Copied!', description: 'Logs copied to clipboard' })
+                                    }}
+                                >
+                                    Copy All Logs
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setDebugLogs([])}
+                                >
+                                    Clear
+                                </Button>
+                            </div>
+                        </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <pre className="text-xs bg-black text-green-400 p-4 rounded overflow-auto max-h-80 whitespace-pre-wrap">
+                            {debugLogs.join('\n')}
+                        </pre>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     )
 }
