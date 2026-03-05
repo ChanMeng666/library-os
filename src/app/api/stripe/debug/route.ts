@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server'
-import Stripe from 'stripe'
 
 export async function GET() {
     const info: Record<string, unknown> = {
@@ -10,24 +9,21 @@ export async function GET() {
         app_url: process.env.NEXT_PUBLIC_APP_URL,
     }
 
-    // Try creating Stripe client directly (bypass stripe-server.ts)
+    // Test Stripe API using raw fetch (no SDK)
     const key = process.env.STRIPE_SECRET_KEY
     if (key) {
         try {
-            info.step = 'creating client'
-            const stripeClient = new Stripe(key, { apiVersion: '2025-04-30.basil' })
-            info.step = 'calling customers.list'
-            const customers = await stripeClient.customers.list({ limit: 1 })
-            info.stripe_works = true
-            info.customer_count = customers.data.length
-            info.step = 'done'
+            const resp = await fetch('https://api.stripe.com/v1/customers?limit=1', {
+                headers: { 'Authorization': `Bearer ${key}` },
+            })
+            const data = await resp.json()
+            info.stripe_raw_fetch_works = true
+            info.stripe_status = resp.status
+            info.customer_count = (data as { data?: unknown[] }).data?.length ?? 0
         } catch (e) {
-            info.stripe_works = false
-            info.stripe_error = e instanceof Error ? e.message : String(e)
+            info.stripe_raw_fetch_works = false
+            info.stripe_raw_fetch_error = e instanceof Error ? e.message : String(e)
         }
-    } else {
-        info.stripe_works = false
-        info.stripe_error = 'STRIPE_SECRET_KEY not set'
     }
 
     return NextResponse.json(info)
