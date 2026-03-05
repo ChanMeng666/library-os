@@ -9,10 +9,12 @@ if (!stripeSecretKey) {
 }
 
 // Only create Stripe client if API key is available
+// Use fetchHttpClient for Cloudflare Workers compatibility (node-fetch hangs in Workers)
 export const stripe = stripeSecretKey
     ? new Stripe(stripeSecretKey, {
         apiVersion: '2025-04-30.basil',
         typescript: true,
+        httpClient: Stripe.createFetchHttpClient(),
     })
     : null
 
