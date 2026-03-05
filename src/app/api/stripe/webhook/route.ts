@@ -13,6 +13,17 @@ const supabase = createClient(
 // Webhook secret from Stripe Dashboard
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET!
 
+// Resolve plan_id from Stripe price metadata (set by setup-stripe.ts)
+async function getPlanFromPriceId(priceId: string): Promise<string> {
+    if (!stripe || !priceId) return 'free'
+    try {
+        const price = await stripe.prices.retrieve(priceId)
+        return (price.metadata?.plan_id as string) || 'free'
+    } catch {
+        return 'free'
+    }
+}
+
 export async function POST(request: NextRequest) {
     try {
         const body = await request.text()
@@ -37,41 +48,16 @@ export async function POST(request: NextRequest) {
             )
         }
 
-        // Library Management System Price IDs (to filter events for this project only)
-        // Live Mode Price IDs
-        const LIVE_PRICE_IDS = [
-            'price_1SjyGc86MNjhkH0a6Jv7jH5r', // Basic monthly $0.99
-            'price_1SjyGf86MNjhkH0aOzA6kwVT', // Basic yearly $9.99
-            'price_1SjyGj86MNjhkH0aRd13R01S', // Pro monthly $2.99
-            'price_1SjyGm86MNjhkH0agZWkyvAB', // Pro yearly $29.99
-            'price_1SjyGo86MNjhkH0aSJ6j7tpa', // Enterprise monthly $8.99
-            'price_1SjyGs86MNjhkH0aoAD8RwqP', // Enterprise yearly $89.99
-        ]
-        // Test Mode Price IDs
-        const TEST_PRICE_IDS = [
-            'price_1Sjvyj86MNjhkH0aYaxu1M8A', // Basic monthly
-            'price_1Sjvyj86MNjhkH0afkLmyIe6', // Basic yearly
-            'price_1Sjvyl86MNjhkH0aJSPO6Zkl', // Pro monthly
-            'price_1Sjvyl86MNjhkH0a9F1rmQzo', // Pro yearly
-            'price_1Sjvyn86MNjhkH0aKIvNQwrA', // Enterprise monthly
-            'price_1Sjvyn86MNjhkH0ailX8YoXK', // Enterprise yearly
-        ]
-        const VALID_PRICE_IDS = [...LIVE_PRICE_IDS, ...TEST_PRICE_IDS]
-
-        // Helper to check if event is for this project
-        const isOurProduct = (priceId: string | undefined) => {
-            return priceId && VALID_PRICE_IDS.some(id => priceId.includes(id.slice(-8)))
-        }
-
         // Handle the event
+        // Since this Stripe account is dedicated to LibraryOS, all events are ours.
+        // Checkout events are still filtered by organization_id metadata.
         switch (event.type) {
             case 'checkout.session.completed': {
                 const session = event.data.object as Stripe.Checkout.Session
-                // Only process if metadata indicates it's from our app
                 if (session.metadata?.organization_id) {
                     await handleCheckoutCompleted(session)
                 } else {
-                    console.log('Skipping checkout.session.completed - not from Library Management System')
+                    console.log('Skipping checkout.session.completed - no organization_id in metadata')
                 }
                 break
             }
@@ -79,45 +65,25 @@ export async function POST(request: NextRequest) {
             case 'customer.subscription.created':
             case 'customer.subscription.updated': {
                 const subscription = event.data.object as Stripe.Subscription
-                const priceId = subscription.items.data[0]?.price.id
-                if (isOurProduct(priceId)) {
-                    await handleSubscriptionUpdated(subscription)
-                } else {
-                    console.log(`Skipping subscription event - price ${priceId} not from Library Management System`)
-                }
+                await handleSubscriptionUpdated(subscription)
                 break
             }
 
             case 'customer.subscription.deleted': {
                 const subscription = event.data.object as Stripe.Subscription
-                const priceId = subscription.items.data[0]?.price.id
-                if (isOurProduct(priceId)) {
-                    await handleSubscriptionDeleted(subscription)
-                } else {
-                    console.log(`Skipping subscription.deleted - price ${priceId} not from Library Management System`)
-                }
+                await handleSubscriptionDeleted(subscription)
                 break
             }
 
             case 'invoice.paid': {
                 const invoice = event.data.object as Stripe.Invoice
-                const priceId = invoice.lines.data[0]?.price?.id
-                if (isOurProduct(priceId)) {
-                    await handleInvoicePaid(invoice)
-                } else {
-                    console.log(`Skipping invoice.paid - not from Library Management System`)
-                }
+                await handleInvoicePaid(invoice)
                 break
             }
 
             case 'invoice.payment_failed': {
                 const invoice = event.data.object as Stripe.Invoice
-                const priceId = invoice.lines.data[0]?.price?.id
-                if (isOurProduct(priceId)) {
-                    await handleInvoicePaymentFailed(invoice)
-                } else {
-                    console.log(`Skipping invoice.payment_failed - not from Library Management System`)
-                }
+                await handleInvoicePaymentFailed(invoice)
                 break
             }
 
@@ -156,10 +122,8 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
             const subscription = await stripe.subscriptions.retrieve(subscriptionId)
             priceId = subscription.items.data[0]?.price.id || ''
 
-            // Determine plan from price_id
-            if (priceId.includes('Sjvyj')) subscriptionPlan = 'basic'
-            else if (priceId.includes('Sjvyl')) subscriptionPlan = 'pro'
-            else if (priceId.includes('Sjvyn')) subscriptionPlan = 'enterprise'
+            // Determine plan from price metadata
+            subscriptionPlan = await getPlanFromPriceId(priceId)
 
             // Map status
             if (subscription.status === 'trialing') subscriptionStatus = 'trial'
@@ -276,11 +240,8 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
         : null
     const cancelAtPeriodEnd = subscription.cancel_at_period_end
 
-    // Determine plan from price_id
-    let plan = 'free'
-    if (priceId?.includes('Sjvyj')) plan = 'basic'
-    else if (priceId?.includes('Sjvyl')) plan = 'pro'
-    else if (priceId?.includes('Sjvyn')) plan = 'enterprise'
+    // Determine plan from price metadata
+    const plan = priceId ? await getPlanFromPriceId(priceId) : 'free'
 
     // Update organization directly (more reliable than RPC)
     const updateData: Record<string, unknown> = {

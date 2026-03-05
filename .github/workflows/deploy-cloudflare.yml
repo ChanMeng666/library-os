@@ -42,9 +42,4 @@ jobs:
         run: |
           echo "## Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Your app is now live at: https://libraryos.chanmeng-dev.workers.dev" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Post-deployment checklist:" >> $GITHUB_STEP_SUMMARY
-          echo "- [ ] Update Stripe webhook URL" >> $GITHUB_STEP_SUMMARY
-          echo "- [ ] Update Supabase redirect URLs" >> $GITHUB_STEP_SUMMARY
-          echo "- [ ] Update NEXT_PUBLIC_APP_URL secret in Cloudflare" >> $GITHUB_STEP_SUMMARY
+          echo "Your app is now live at: https://libraryos.live" >> $GITHUB_STEP_SUMMARY
