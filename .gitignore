@@ -53,5 +53,3 @@ next-env.d.ts
 # Windows system files
 nul
 NUL
-.claude/settings.local.json
-.claude/settings.local.json
