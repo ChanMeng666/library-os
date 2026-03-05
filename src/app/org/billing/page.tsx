@@ -207,7 +207,11 @@ function BillingContent() {
 
             addLog(`Response status=${response.status} ok=${response.ok}`)
             const data = await response.json()
-            addLog(`Response data=${JSON.stringify(data)}`)
+            // Show server-side debug logs if present
+            if (data.debug && Array.isArray(data.debug)) {
+                data.debug.forEach((line: string) => addLog(`[SERVER] ${line}`))
+            }
+            addLog(`Response data=${JSON.stringify({...data, debug: undefined})}`)
 
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to create checkout session')
