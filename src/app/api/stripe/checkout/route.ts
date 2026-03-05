@@ -5,7 +5,6 @@ import {
     getOrCreateStripeCustomer,
     createNewStripeCustomer,
     createCheckoutSession,
-    getStripePrices,
 } from '@/lib/stripe-server'
 
 // Create Supabase client with service role for server operations
@@ -102,12 +101,17 @@ export async function POST(request: NextRequest) {
                 .eq('organization_id', organizationId)
         }
 
-        // Get the appropriate price ID
-        const prices = getStripePrices()
-        const priceKey = `${planId}_${billingPeriod}` as keyof typeof prices
-        const priceId = prices[priceKey]
+        // Get the price ID from subscription_plans table
+        const priceColumn = billingPeriod === 'yearly' ? 'stripe_price_id_yearly' : 'stripe_price_id_monthly'
+        const { data: planData, error: planError } = await supabase
+            .from('subscription_plans')
+            .select(priceColumn)
+            .eq('plan_id', planId)
+            .single()
 
-        if (!priceId) {
+        const priceId = planData?.[priceColumn]
+
+        if (planError || !priceId) {
             return NextResponse.json(
                 { error: `Invalid plan or billing period: ${planId} ${billingPeriod}` },
                 { status: 400 }
