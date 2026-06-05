@@ -125,10 +125,26 @@ export default function Footer() {
                         <Link href="/cookies" className="hover:text-foreground transition-colors">
                             Cookie Policy
                         </Link>
-                        <span className="hidden md:inline">
-                            Built with care by Chan Meng
-                        </span>
                     </div>
+                </div>
+
+                {/* Developer brand credit — Chan Meng */}
+                <div className="border-t border-border/40 mt-8 pt-8 flex flex-col items-center gap-2 text-center">
+                    <a
+                        href="https://github.com/ChanMeng666"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                        <Image src="/brand/chan-meng-monkey.svg" alt="Chan Meng" width={22} height={22} />
+                        <span className="font-medium">Built by Chan Meng — need a custom app like this one?</span>
+                    </a>
+                    <a
+                        href="mailto:chanmeng.dev@gmail.com"
+                        className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                        chanmeng.dev@gmail.com
+                    </a>
                 </div>
             </div>
         </footer>
