@@ -1,0 +1,59 @@
+{
+  "project": "library-os",
+  "baseUrl": "https://libraryos.live",
+  "outDir": "docs/showcase",
+
+  "viewports": {
+    "desktop": { "width": 1280, "height": 800, "deviceScaleFactor": 2 },
+    "mobile":  { "width": 390,  "height": 844, "deviceScaleFactor": 3, "isMobile": true }
+  },
+
+  "reducedMotion": "reduce",
+
+  "setup": [],
+
+  "pages": [
+    {
+      "label": "hero",
+      "url": "/",
+      "viewport": "desktop",
+      "fullPage": false,
+      "before": [
+        { "action": "wait", "ms": 2000 }
+      ]
+    },
+    {
+      "label": "register",
+      "url": "/register",
+      "viewport": "desktop",
+      "fullPage": false,
+      "before": [
+        { "action": "wait", "ms": 1800 }
+      ]
+    },
+    {
+      "label": "mobile-hero",
+      "url": "/",
+      "viewport": "mobile",
+      "fullPage": false,
+      "before": [
+        { "action": "wait", "ms": 2000 }
+      ]
+    }
+  ],
+
+  "demo": {
+    "size": { "width": 1280, "height": 720 },
+    "stepPauseMs": 400,
+    "steps": [
+      { "action": "goto", "url": "/", "timeoutMs": 15000 },
+      { "action": "wait", "ms": 2000 },
+      { "action": "scroll", "by": 350 },
+      { "action": "wait", "ms": 1800 },
+      { "action": "scroll", "by": 400 },
+      { "action": "wait", "ms": 1600 },
+      { "action": "goto", "url": "/register", "timeoutMs": 15000 },
+      { "action": "wait", "ms": 2000 }
+    ]
+  }
+}
